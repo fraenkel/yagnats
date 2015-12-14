@@ -2,9 +2,10 @@ package yagnats
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/apcera/nats"
+	"github.com/nats-io/nats"
 
 	. "launchpad.net/gocheck"
 )
@@ -18,7 +19,7 @@ func (s *YSuite) TestApceraConnectWithInvalidAddress(c *C) {
 	_, err := Connect([]string{""})
 
 	c.Assert(err, Not(Equals), nil)
-	c.Assert(err.Error(), Equals, "dial tcp: missing address")
+	c.Assert(err.Error(), Equals, nats.ErrNoServers.Error())
 }
 
 func (s *YSuite) TestApceraClientConnectWithInvalidAuth(c *C) {
@@ -43,17 +44,17 @@ func (s *YSuite) TestApceraClientPingWhenConnectionClosed(c *C) {
 }
 
 func (s *YSuite) TestApceraClientReconnectCB(c *C) {
-	reconnectCalled := false
+	reconnectCalled := int64(0)
 	reconnectedClient := Must(Connect([]string{"nats://nats:nats@127.0.0.1:4223"}))
 	reconnectedClient.AddReconnectedCB(func(_ *nats.Conn) {
-		reconnectCalled = true
+		atomic.StoreInt64(&reconnectCalled, 1)
 	})
 
 	stopCmd(s.NatsCmd)
 	s.NatsCmd = startNats(4223)
 	waitUntilNatsUp(4223)
 
-	c.Assert(reconnectCalled, Equals, true)
+	c.Assert(atomic.LoadInt64(&reconnectCalled), Equals, int64(1))
 }
 
 func (s *YSuite) TestApceraClientClosdCB(c *C) {

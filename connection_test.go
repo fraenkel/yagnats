@@ -2,8 +2,10 @@ package yagnats
 
 import (
 	"bytes"
-	. "launchpad.net/gocheck"
+	"sync/atomic"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 type CSuite struct {
@@ -142,9 +144,7 @@ func (s *CSuite) TestConnectionOnMessageCallback(c *C) {
 }
 
 func (s *CSuite) TestConnectionClusterReconnectsAnother(c *C) {
-	hellos := 0
-	thanks := 0
-	goodbyes := 0
+	var hello, thanks, goodbye int64
 	errs := 0
 
 	nodes := [](*FakeConnectionProvider){
@@ -179,13 +179,13 @@ func (s *CSuite) TestConnectionClusterReconnectsAnother(c *C) {
 		} else {
 			conn.OnMessage(func(msg *MsgPacket) {
 				if string(msg.Payload) == "hello" {
-					hellos += 1
+					atomic.AddInt64(&hello, 1)
 				}
 				if string(msg.Payload) == "thank" {
-					thanks += 1
+					atomic.AddInt64(&thanks, 1)
 				}
 				if string(msg.Payload) == "goodbye" {
-					goodbyes += 1
+					atomic.AddInt64(&goodbye, 1)
 				}
 			})
 
@@ -193,8 +193,11 @@ func (s *CSuite) TestConnectionClusterReconnectsAnother(c *C) {
 		}
 	}
 
-	c.Assert(hellos, Equals, 1)
-	c.Assert(thanks, Equals, 1)
-	c.Assert(goodbyes, Equals, 1)
+	time.Sleep(100 * time.Millisecond)
+
+	one := int64(1)
+	c.Assert(atomic.LoadInt64(&hello), Equals, one)
+	c.Assert(atomic.LoadInt64(&thanks), Equals, one)
+	c.Assert(atomic.LoadInt64(&goodbye), Equals, one)
 	c.Assert(errs, Equals, 1)
 }
